@@ -1,0 +1,15 @@
+{
+    "discord_token": "",
+    "webhook_url": "",
+    "server_domain": "",
+    "server_id": "",
+    "server_token": "",
+    "target_channel": 0,
+    "target_role1": 0,
+    "target_role2": 0,
+    "db_host": "",
+    "db_user": "",
+    "db_passwd": "",
+    "db_name": "",
+    "db_port": 3306
+}
