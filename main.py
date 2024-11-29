@@ -32,7 +32,7 @@ async def on_ready():
     scheduler.start()
 
 @client.event
-async def on_message(message: discord.message.Message) -> None:
+async def on_message(message: discord.message.Message):
     if message.author.bot:
         return 
 
