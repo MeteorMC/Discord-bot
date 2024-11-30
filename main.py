@@ -28,13 +28,13 @@ client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
-    logger.info("success")
+    logger.success("success")
     scheduler.start()
 
 @client.event
 async def on_message(message: discord.message.Message):
     if message.author.bot:
-        return 
+        return
 
     if message.channel.id == conf['target_channel']:
         content = message.content
@@ -97,7 +97,7 @@ async def on_message(message: discord.message.Message):
             return
         await message.reply(f"{content} の登録が完了しました")
         await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.name}\nプラン: {plan}", True)
-        logger.info(f"{content}の登録処理が完了しました")
+        logger.success(f"{content}の登録処理が完了しました")
         return
 
 scheduler.add_job(server.role_check, "interval", hours=1, args=[client])
