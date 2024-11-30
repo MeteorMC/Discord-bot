@@ -48,7 +48,7 @@ async def on_message(message: discord.message.Message):
                 cmd = None
                 r = await client.get(f"https://api.mojang.com/users/profiles/minecraft/{content}")
                 if r.status_code != 200:
-                    await message.reply(f"{content}のユーザー名は見つかりませんでした")
+                    await message.reply(f"{content}のユーザー名は見つかりませんでした\n再度お試しください")
                     return
                 for role in message.author.roles:
                     if role.id == conf['target_role1']:
@@ -76,11 +76,11 @@ async def on_message(message: discord.message.Message):
                         result = await cursor.fetchall()
                         for row in result:
                             if row[0] == message.author.id or row[1] == content:
-                                await message.reply(f"{message.author.name}または{content}はすでに登録されています")
+                                await message.reply(f"{message.author.display_name}({message.author.name})または{content}はすでに登録されています")
                                 return
                         await cursor.execute("INSERT INTO users (id, userid, mcid, plan) VALUES (NULL, %s, %s, %s);", (message.author.id, content, plan))
                         await conn.commit()
-                    except Exception as e:
+                    except aiomysql.MySQLError as e:
                         await conn.rollback()
                         await message.reply("内部エラーが発生しました\n再度お試しください")
                         await server.webhook("データベースエラー", e, False)
@@ -88,6 +88,7 @@ async def on_message(message: discord.message.Message):
                         return
         except aiomysql.MySQLError as e:
             await message.reply("内部エラーが発生しました\n再度お試しください")
+            await server.webhook("データベースエラー", e, False)
             logger.error(e)
             return
 
@@ -96,8 +97,8 @@ async def on_message(message: discord.message.Message):
             await message.reply("登録に失敗しました\nサポートにお問い合わせください")
             return
         await message.reply(f"{content} の登録が完了しました")
-        await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.name}\nプラン: {plan}", True)
-        logger.success(f"{content}の登録処理が完了しました")
+        await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.display_name}({message.author.name})\nプラン: {plan}", True)
+        logger.success(f"MCID: {content}の登録処理が完了しました")
         return
 
 scheduler.add_job(server.role_check, "interval", hours=1, args=[client])

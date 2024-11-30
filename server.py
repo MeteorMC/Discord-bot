@@ -12,22 +12,23 @@ async def send_cmd(CMD: str) -> bool:
     async with aiofiles.open("config.json", mode="r", encoding="utf-8") as f:
         conf = json.loads(await f.read())
     if not (conf['server_token'] or conf['server_domain'] or conf['server_id']):
-        logger.error("必要なデータがありません")
+        logger.critical("必要なデータがありません")
         return
     async with httpx.AsyncClient() as client:
+        headers = {
+             "Accept": "application/json",
+             "Authorization": f"Bearer {conf['server_token']}",
+             "Content-Type": "application/json",
+        }
         try:
-            headers = {
-                 "Accept": "application/json",
-                 "Authorization": f"Bearer {conf['server_token']}",
-                 "Content-Type": "application/json",
-            }
             r = await client.post(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/command", headers=headers, json={"command": CMD})
-            if r.status_code != 204:
-                return False
-            return True
         except httpx.RequestError as e:
-            logger.error(e)
+            logger.error(f"予期せぬエラーが発生しました: {e}")
             return False
+        if r.status_code != 204:
+            logger.error(f"予期せぬステータスコード: {r.status_code}")
+            return False
+    return True
 
 async def role_check(CLIENT: discord.Client) -> None:
     async with aiofiles.open("config.json", mode="r", encoding="utf-8") as f:
@@ -59,7 +60,7 @@ async def role_check(CLIENT: discord.Client) -> None:
                                     await send_cmd(f"lp user {row[1]} parent remove {row[2]}")
                                     await cursor.execute("DELETE FROM users WHERE userid = %s AND mcid = %s AND plan = %s;", (row[0], row[1], row[2]))
                                     await conn.commit()
-                                    await webhook("プラン解約のためユーザー削除完了", f"削除されたdiscord名: {member.display_name}\nMCID: {row[1]}", True)
+                                    await webhook("プラン解約のためユーザー削除完了", f"削除されたdiscord名: {member.display_name}({member.name})\nMCID: {row[1]}", True)
                                     logger.success(f"MCID: {row[1]}の契約プランを解除しました")
                             except (TypeError, KeyError) as e:
                                 logger.error(f"ユーザーのプランを変更しようとしたらエラーが発生しました: {e}")
@@ -72,9 +73,10 @@ async def role_check(CLIENT: discord.Client) -> None:
                             logger.success(f"MCID: {row[1]}はサーバーにいないため契約プランを解除します")
                 except aiomysql.MySQLError as e:
                     await conn.rollback()
-                    await webhook("エラーが発生しました", e, False)
+                    await webhook("データベースエラー", e, False)
                     logger.error(e)
     except aiomysql.MySQLError as e:
+        await webhook("データベースエラー", e, False)
         logger.error(e)
 
 async def webhook(title: str, content: str, success: bool) -> None:
@@ -91,8 +93,14 @@ async def webhook(title: str, content: str, success: bool) -> None:
                     "title": title,
                     "description": content,
                     "timestamp": datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%dT%H:%M:%S%z"),
-                    "color": 0x00FF00 if success else 0xff0000
+                    "color": 0x00FF00 if success else 0xFF0000
                 }
             ]
         }
-        await client.post(conf['webhook_url'], json=data, headers={"Content-Type": "application/json"})
+        try:
+            r = await client.post(conf['webhook_url'], json=data, headers={"Content-Type": "application/json"})
+        except httpx.RequestError as e:
+            logger.error(f"予期せぬエラーが発生しました: {e}")
+            return
+    if r.status_code != 204:
+        logger.warning(f"Webhook通知に失敗しました\nステータスコード: {r.status_code}")
