@@ -13,12 +13,12 @@ async def send_cmd(CMD: str) -> bool:
         conf = json.loads(await f.read())
     if not (conf['server_token'] or conf['server_domain'] or conf['server_id']):
         logger.critical("必要なデータがありません")
-        return
+        return False
     async with httpx.AsyncClient() as client:
         headers = {
              "Accept": "application/json",
              "Authorization": f"Bearer {conf['server_token']}",
-             "Content-Type": "application/json",
+             "Content-Type": "application/json"
         }
         try:
             r = await client.post(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/command", headers=headers, json={"command": CMD})
@@ -63,6 +63,7 @@ async def role_check(CLIENT: discord.Client) -> None:
                                     await webhook("プラン解約のためユーザー削除完了", f"削除されたdiscord名: {member.display_name}({member.name})\nMCID: {row[1]}", True)
                                     logger.success(f"MCID: {row[1]}の契約プランを解除しました")
                             except (TypeError, KeyError) as e:
+                                await webhook("ユーザーのプランを変更しようとしたらエラーが発生しました", e, False)
                                 logger.error(f"ユーザーのプランを変更しようとしたらエラーが発生しました: {e}")
                                 break
                         else:
@@ -79,10 +80,14 @@ async def role_check(CLIENT: discord.Client) -> None:
         await webhook("データベースエラー", e, False)
         logger.error(e)
 
-async def webhook(title: str, content: str, success: bool) -> None:
+async def webhook(TITLE: str, CONTENT: str, SUCCESS: bool) -> None:
     async with aiofiles.open("config.json", mode="r", encoding="utf-8") as f:
         conf = json.loads(await f.read())
-    if not conf['webhook_url']:
+    try:
+        if not conf['webhook_url']:
+            logger.warning("webhookは無効のため処理を停止")
+            return
+    except KeyError:
         logger.warning("webhookは無効のため処理を停止")
         return
     async with httpx.AsyncClient() as client:
@@ -90,10 +95,10 @@ async def webhook(title: str, content: str, success: bool) -> None:
             "username": "Meteor",
             "embeds": [
                 {
-                    "title": title,
-                    "description": content,
+                    "title": TITLE,
+                    "description": CONTENT,
                     "timestamp": datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%dT%H:%M:%S%z"),
-                    "color": 0x00FF00 if success else 0xFF0000
+                    "color": 0x00FF00 if SUCCESS else 0xFF0000
                 }
             ]
         }

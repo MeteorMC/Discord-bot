@@ -38,6 +38,8 @@ async def on_message(message: discord.message.Message):
 
     if message.channel.id == conf['target_channel']:
         content = message.content
+        cmd = None
+        join_player = None
         if len(content) >= 50:
             await message.reply("文字のしきい値が超えています\nサポートにお問い合わせください")
             logger.warning(f"最大文字数は50文字以内 || 文字数: {len(content)}")
@@ -45,28 +47,38 @@ async def on_message(message: discord.message.Message):
 
         async with httpx.AsyncClient() as client:
             try:
-                cmd = None
                 r = await client.get(f"https://api.mojang.com/users/profiles/minecraft/{content}")
                 if r.status_code != 200:
                     await message.reply(f"{content}のユーザー名は見つかりませんでした\n再度お試しください")
-                    return
-                for role in message.author.roles:
-                    if role.id == conf['target_role1']:
-                        cmd = f"lp user {content} parent add vip"
-                        plan = "vip"
-                        break
-                    elif role.id == conf['target_role2']:
-                        plan = "vip+"
-                        cmd = f"lp user {content} parent add vip+"
-                        break
-                if not cmd:
-                    await message.reply("必要な情報がありません\nサポートにお問い合わせください")
-                    logger.error("必要なロールがないため処理を停止")
                     return
             except httpx.RequestError as e:
                 await message.reply("内部エラーが発生しました\n再度お試しください")
                 logger.error(e)
                 return
+        try:
+            async with aiomysql.connect(host=conf['db_host'], user=conf['db_user'], password=conf['db_passwd'], db=conf['player_check_db_name'], port=conf['db_port']) as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT uuid FROM husksync_users;")
+                    result = await cursor.fetchall()
+                    for row in result:
+                        if r.json()["id"] == row[0].replace("-", ""):
+                            join_player = True
+                            break
+                    if not join_player:
+                        await message.reply("一度もサーバーに参加していません\n参加してから再度お試しください")
+                        logger.error(f"discord名: {message.author.display_name}({message.author.name})は一度もサーバーに参加していないため処理を停止")
+                        return
+        except (aiomysql.MySQLError, KeyError):
+            logger.warning("サーバー参加プレイヤーチェックをスキップします")
+        for role in message.author.roles:
+            role_name = role.name if role.name.islower() else role.name.lower()
+            if role.id == conf['target_role1'] or role.id == conf['target_role2']:
+                cmd = f"lp user {content} parent add {role_name}"
+                break
+        if not cmd:
+            await message.reply("必要な情報がありません\nサポートにお問い合わせください")
+            logger.error(f"discord名: {message.author.display_name}({message.author.name})には必要なロールがないため処理を停止")
+            return
 
         try:
             async with aiomysql.connect(host=conf['db_host'], user=conf['db_user'], password=conf['db_passwd'], db=conf['db_name'], port=conf['db_port']) as conn:
@@ -78,7 +90,7 @@ async def on_message(message: discord.message.Message):
                             if row[0] == message.author.id or row[1] == content:
                                 await message.reply(f"{message.author.display_name}({message.author.name})または{content}はすでに登録されています")
                                 return
-                        await cursor.execute("INSERT INTO users (id, userid, mcid, plan) VALUES (NULL, %s, %s, %s);", (message.author.id, content, plan))
+                        await cursor.execute("INSERT INTO users (id, userid, mcid, plan) VALUES (NULL, %s, %s, %s);", (message.author.id, content, role_name))
                         await conn.commit()
                     except aiomysql.MySQLError as e:
                         await conn.rollback()
@@ -97,12 +109,12 @@ async def on_message(message: discord.message.Message):
             await message.reply("登録に失敗しました\nサポートにお問い合わせください")
             return
         await message.reply(f"{content} の登録が完了しました")
-        await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.display_name}({message.author.name})\nプラン: {plan}", True)
+        await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.display_name}({message.author.name})\nプラン: {role_name}", True)
         logger.success(f"MCID: {content}の登録処理が完了しました")
         return
 
 scheduler.add_job(server.role_check, "interval", hours=1, args=[client])
 try:
-    client.run(token=conf['discord_token'])
+    client.run(token=conf['discord_token'], log_level=40)
 except KeyboardInterrupt:
     scheduler.shutdown()
