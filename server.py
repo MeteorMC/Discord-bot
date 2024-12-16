@@ -4,6 +4,7 @@ import aiomysql
 import aiofiles
 import json
 import datetime
+import asyncio
 from loguru import logger
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -109,3 +110,34 @@ async def webhook(TITLE: str, CONTENT: str, SUCCESS: bool) -> None:
             return
     if r.status_code != 204:
         logger.warning(f"Webhook通知に失敗しました\nステータスコード: {r.status_code}")
+
+async def crash_restart() -> None:
+    async with aiofiles.open("config.json", mode="r", encoding="utf-8") as f:
+        conf = json.loads(await f.read())
+    async with httpx.AsyncClient() as client:
+        headers = {
+             "Accept": "application/json",
+             "Authorization": f"Bearer {conf['server_token']}",
+        }
+        r = await client.get(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/resources", headers=headers)
+        if r.status_code != 200:
+            logger.error(f"予期せぬステータスコード: {r.status_code}")
+            return
+        content = r.json()['attributes']
+        if content['current_state'] == "running" and content['resources']['cpu_absolute'] < conf['cpu']:
+            headers = {
+                "Accept": "application/json",
+                "Authorization": f"Bearer {conf['server_token']}",
+                "Content-Type": "application/json",
+            }
+            r = await client.post(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/power", headers=headers, json={"signal": "kill"})
+            if r.status_code != 204:
+                logger.error(f"予期せぬステータスコード: {r.status_code}")
+                return
+            await asyncio.sleep(1)
+            r = await client.post(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/power", headers=headers, json={"signal": "start"})
+            if r.status_code != 204:
+                logger.error(f"予期せぬステータスコード: {r.status_code}")
+                return
+    logger.success("再起動が完了しました")
+    await webhook("再起動シグナル", "スレッドクラッシュが検知されたため再起動シグナルを送信しました", True)

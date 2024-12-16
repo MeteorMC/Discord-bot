@@ -27,7 +27,7 @@ scheduler = AsyncIOScheduler(timezone="Asia/Tokyo")
 client = discord.Client(intents=intents)
 
 @client.event
-async def on_ready():
+async def setup_hook():
     logger.success("success")
     scheduler.start()
 
@@ -114,6 +114,7 @@ async def on_message(message: discord.message.Message):
         return
 
 scheduler.add_job(server.role_check, "interval", hours=1, args=[client])
+scheduler.add_job(server.crash_restart, "interval", minutes=1)
 try:
     client.run(token=conf['discord_token'], log_level=40)
 except KeyboardInterrupt:
