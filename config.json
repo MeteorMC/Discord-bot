@@ -13,5 +13,6 @@
     "db_name": "",
     "db_port": 3306,
     "player_check_db_name": "",
-    "cpu_threshold": 10
+    "cpu_threshold": 10,
+    "watched_bot_id": 0
 }
