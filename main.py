@@ -50,7 +50,15 @@ async def on_message(message: discord.message.Message):
             try:
                 r = await client.get(f"https://api.mojang.com/users/profiles/minecraft/{content}")
                 if r.status_code != 200:
-                    await message.reply(f"{content}のユーザー名は見つかりませんでした\n再度お試しください")
+                    await message.reply(f"{content} は見つかりませんでした\n再度お試しください")
+                    return
+                headers = {
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {conf['server_token']}"
+                }
+                r = await client.get(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/resources", headers=headers)
+                if r.json['attributes']['current_state'] != "running":
+                    await message.reply("現在サーバーは起動していないため登録処理ができません\nしばらくたってから再度お試しください")
                     return
             except httpx.RequestError as e:
                 await message.reply("内部エラーが発生しました\n再度お試しください")
