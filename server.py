@@ -143,3 +143,15 @@ async def crash_restart(CLIENT: discord.client) -> None:
                 return
             logger.success("再起動が完了しました")
             await webhook("再起動シグナル", "スレッドクラッシュが検知されたため再起動シグナルを送信しました", True)
+        elif content['current_state'] == "starting" and content['resources']['cpu_absolute'] < 3:
+            headers.update({"Authorization": f"Bearer {conf['server_token']}", "Content-Type": "application/json"})
+            r = await client.post(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/power", headers=headers, json={"signal": "kill"})
+            if r.status_code != 204:
+                logger.error(f"予期せぬステータスコード: {r.status_code}")
+                return
+            await asyncio.sleep(1)
+            r = await client.post(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/power", headers=headers, json={"signal": "start"})
+            if r.status_code != 204:
+                logger.error(f"予期せぬステータスコード: {r.status_code}")
+                return
+            await webhook("起動時にエラーが発生した可能性", "起動時にエラーが発生した可能性があるため、再起動シグナルを送信しました", True)
