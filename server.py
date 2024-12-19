@@ -122,7 +122,7 @@ async def crash_restart(CLIENT: discord.client) -> None:
             return
         content = r.json()['attributes']
         headers.update({"Authorization": f"Bearer {conf['Token']['ServerPanel']}", "Content-Type": "application/json"})
-        if content['current_state'] == "running" and content['resources']['cpu_absolute'] < conf['cpu_threshold'] and BotStatus > 0:
+        if content['current_state'] == "running" and content['resources']['cpu_absolute'] < conf['Threshold']['Cpu'] and BotStatus > 0:
             r = await client.post(f"https://{conf['URL']['ServerPanel']}/api/client/servers/{conf['ID']['Server']}/power", headers=headers, json={"signal": "kill"})
             if r.status_code != 204:
                 logger.error(f"予期せぬステータスコード: {r.status_code}")
