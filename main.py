@@ -15,7 +15,7 @@ if not os.path.isfile("config.json"):
 with open("config.json", mode="r", encoding="utf-8") as f:
     conf = json.load(f)
 
-if not conf['discord_token']:
+if not conf['Token']['DiscordBot']:
     logger.critical("discord bot tokenがありません")
     sys.exit(1)
 
@@ -37,7 +37,7 @@ async def on_message(message: discord.message.Message):
     if message.author.bot:
         return
 
-    if message.channel.id == conf['target_channel']:
+    if message.channel.id == conf['ID']['TargetChannel']:
         content = message.content
         cmd = None
         join_player = None
@@ -54,9 +54,9 @@ async def on_message(message: discord.message.Message):
                     return
                 headers = {
                     "Accept": "application/json",
-                    "Authorization": f"Bearer {conf['server_token']}"
+                    "Authorization": f"Bearer {conf['Token']['ServerPanel']}"
                 }
-                r = await client.get(f"https://{conf['server_domain']}/api/client/servers/{conf['server_id']}/resources", headers=headers)
+                r = await client.get(f"https://{conf['URL']['ServerPanel']}/api/client/servers/{conf['ID']['Server']}/resources", headers=headers)
                 if r.json['attributes']['current_state'] != "running":
                     await message.reply("現在サーバーは起動していないため登録処理ができません\nしばらくたってから再度お試しください")
                     return
@@ -65,7 +65,7 @@ async def on_message(message: discord.message.Message):
                 logger.error(e)
                 return
         try:
-            async with aiomysql.connect(host=conf['db_host'], user=conf['db_user'], password=conf['db_passwd'], db=conf['player_check_db_name'], port=conf['db_port']) as conn:
+            async with aiomysql.connect(host=conf['DB']['Host'], user=conf['DB']['User'], password=conf['DB']['Passwd'], db=conf['DB']['PlayerCheckName'], port=conf['DB']['Port']) as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute("SELECT uuid FROM husksync_users;")
                     result = await cursor.fetchall()
@@ -81,8 +81,8 @@ async def on_message(message: discord.message.Message):
             logger.warning("サーバー参加プレイヤーチェックをスキップします")
         for role in message.author.roles:
             role_name = role.name if role.name.islower() else role.name.lower()
-            if role.id == conf['target_role1'] or role.id == conf['target_role2']:
-                cmd = f"lp user {content} parent add {role_name}"
+            if role.id == conf['ID']['TargetRole1'] or role.id == conf['ID']['TargetRole2']:
+                cmd = f"lp user {r.json()["id"]} parent add {role_name}"
                 break
         if not cmd:
             await message.reply("必要な情報がありません\nサポートにお問い合わせください")
@@ -90,7 +90,7 @@ async def on_message(message: discord.message.Message):
             return
 
         try:
-            async with aiomysql.connect(host=conf['db_host'], user=conf['db_user'], password=conf['db_passwd'], db=conf['db_name'], port=conf['db_port']) as conn:
+            async with aiomysql.connect(host=conf['DB']['Host'], user=conf['DB']['User'], password=conf['DB']['Passwd'], db=conf['DB']['Name'], port=conf['DB']['Port']) as conn:
                 async with conn.cursor() as cursor:
                     try:
                         await cursor.execute("SELECT userid, mcid FROM users;")
@@ -99,17 +99,17 @@ async def on_message(message: discord.message.Message):
                             if row[0] == message.author.id or row[1] == content:
                                 await message.reply(f"{message.author.display_name}({message.author.name})または{content}はすでに登録されています")
                                 return
-                        await cursor.execute("INSERT INTO users (id, userid, mcid, plan) VALUES (NULL, %s, %s, %s);", (message.author.id, content, role_name))
+                        await cursor.execute("INSERT INTO users (id, userid, mcid, plan) VALUES (NULL, %s, %s, %s);", (message.author.id, r.json()["id"], role_name))
                         await conn.commit()
                     except aiomysql.MySQLError as e:
                         await conn.rollback()
                         await message.reply("内部エラーが発生しました\n再度お試しください")
-                        await server.webhook("データベースエラー", e, False)
+                        await server.webhook("データベースエラー", e, conf['URL']['PrivateWebhook'], False)
                         logger.error(e)
                         return
         except aiomysql.MySQLError as e:
             await message.reply("内部エラーが発生しました\n再度お試しください")
-            await server.webhook("データベースエラー", e, False)
+            await server.webhook("データベースエラー", e, conf['URL']['PrivateWebhook'], False)
             logger.error(e)
             return
 
@@ -118,13 +118,13 @@ async def on_message(message: discord.message.Message):
             await message.reply("登録に失敗しました\nサポートにお問い合わせください")
             return
         await message.reply(f"{content} の登録が完了しました")
-        await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.display_name}({message.author.name})\nプラン: {role_name}", True)
+        await server.webhook(f"ユーザー登録完了", f"mcid: {content}\ndiscordの名前: {message.author.display_name}({message.author.name})\nプラン: {role_name}", conf['URL']['PrivateWebhook'], True)
         logger.success(f"MCID: {content}の登録処理が完了しました")
         return
 
 scheduler.add_job(server.role_check, "interval", hours=1, args=[client])
 scheduler.add_job(server.crash_restart, "interval", minutes=1, args=[client])
 try:
-    client.run(token=conf['discord_token'], log_level=40)
+    client.run(token=conf['Token']['DiscordBot'], log_level=40)
 except KeyboardInterrupt:
     scheduler.shutdown()

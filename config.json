@@ -1,18 +1,29 @@
 {
-    "discord_token": "",
-    "webhook_url": "",
-    "server_domain": "",
-    "server_id": "",
-    "server_token": "",
-    "target_channel": 0,
-    "target_role1": 0,
-    "target_role2": 0,
-    "db_host": "",
-    "db_user": "",
-    "db_passwd": "",
-    "db_name": "",
-    "db_port": 3306,
-    "player_check_db_name": "",
-    "cpu_threshold": 10,
-    "watched_bot_id": 0
+    "Token": {
+        "DiscordBot": "",
+        "ServerPanel": ""
+    },
+    "ID": {
+        "Server": "",
+        "TargetChannel": 0,
+        "TargetRole1": 0,
+        "TargetRole2": 0,
+        "WatcheBot": 0
+    },
+    "URL": {
+        "ServerPanel": "",
+        "PrivateWebhook": "",
+        "PublicWebhook": ""
+    },
+    "DB": {
+        "Host": "",
+        "User": "",
+        "Passwd": "",
+        "Name": "",
+        "Port": 3306,
+        "PlayerCheckName": ""
+    },
+    "Threshold": {
+        "Cpu": 10
+    }
 }
